@@ -34,4 +34,4 @@ but can be used only for research purposes.
 
 ## Model
 We have conducted small literature review and have identified that current state-of-the-art is a combination of a pretrained resnet34 + Unet model.
-![Model architecture](images/architecture.jped "Model architecture")
+![Model architecture](images/architecture.jpeg "Model architecture")
