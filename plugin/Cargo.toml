@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "ps-sdk-sys",
+    "mangai-clean",
+]
+
