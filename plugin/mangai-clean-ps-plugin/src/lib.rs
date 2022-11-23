@@ -1,12 +1,18 @@
+// ensure intel_mkl_src is linked in
+extern crate intel_mkl_src as _src;
+
 mod console;
 mod panic_handler;
 mod point;
 mod rect;
 
-use num_enum::{FromPrimitive, TryFromPrimitive};
+use ndarray::{ArrayView3, ArrayViewMut3, Ix3, Shape, ShapeBuilder};
+use num_enum::TryFromPrimitive;
 use point::Point;
 use ps_sdk_sys::{int16, int32, Boolean, FilterRecord};
 use rect::Rect;
+use std::fmt::{Debug, Formatter};
+use std::marker::PhantomData;
 
 struct PluginBaseParams {
     test_abort_cb: unsafe extern "C" fn() -> Boolean,
@@ -184,28 +190,58 @@ impl PluginStartResult {
     }
 }
 
-#[derive(Debug)]
-struct PluginContinueParams {
+struct PluginContinueParams<'a> {
     in_rect: Rect,
     out_rect: Rect,
     // TODO: better types
-    in_data: *mut u8,
-    in_data_stride: u32,
-    out_data: *mut u8,
-    out_data_stride: u32,
+    in_data: ArrayView3<'a, u8>,
+    out_data: ArrayViewMut3<'a, u8>,
+    phantom: PhantomData<&'a mut ()>,
 }
 
-impl PluginContinueParams {
-    pub fn from_filter(filter_param_block: &FilterRecord) -> Self {
+impl<'a> Debug for PluginContinueParams<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PluginContinueParams")
+            .field("in_rect", &self.in_rect)
+            .field("out_rect", &self.out_rect)
+            .field("in_data", &self.in_data.dim())
+            .field("out_data", &self.out_data.dim())
+            .finish()
+    }
+}
+
+impl<'a> PluginContinueParams<'a> {
+    pub fn from_filter(filter_param_block: &mut FilterRecord) -> Self {
         let big_data = unsafe { &*filter_param_block.bigDocumentData };
+
+        let in_height = (big_data.inRect32.bottom - big_data.inRect32.top) as usize;
+        let in_width = (big_data.inRect32.right - big_data.inRect32.left) as usize;
+        let in_stride = filter_param_block.inRowBytes as usize;
+
+        let in_data = unsafe {
+            ArrayView3::from_shape_ptr(
+                Shape::from(Ix3(3, in_height, in_width)).strides(Ix3(1, in_stride, 3)),
+                filter_param_block.inData as *const u8,
+            )
+        };
+
+        let out_height = (big_data.outRect32.bottom - big_data.outRect32.top) as usize;
+        let out_width = (big_data.outRect32.right - big_data.outRect32.left) as usize;
+        let out_stride = filter_param_block.outRowBytes as usize;
+
+        let out_data = unsafe {
+            ArrayViewMut3::from_shape_ptr(
+                Shape::from(Ix3(3, out_height, out_width)).strides(Ix3(1, out_stride, 3)),
+                filter_param_block.outData as *mut u8,
+            )
+        };
 
         Self {
             in_rect: big_data.inRect32.into(),
             out_rect: big_data.outRect32.into(),
-            in_data: filter_param_block.inData as *mut u8,
-            in_data_stride: filter_param_block.inRowBytes.try_into().unwrap(),
-            out_data: filter_param_block.outData as *mut u8,
-            out_data_stride: filter_param_block.outRowBytes.try_into().unwrap(),
+            in_data,
+            out_data,
+            phantom: PhantomData {},
         }
     }
 }
@@ -227,20 +263,20 @@ enum FilterError {
     BadMode = ps_sdk_sys::filterBadMode as i16,
 }
 
-fn about(plugin: &PluginBaseParams) -> Result<(), FilterError> {
+fn about(_plugin: &PluginBaseParams) -> Result<(), FilterError> {
     msgbox::create("About", "MangaiClean v 0.0.0.0.0.0.0.01-beta (lol, can you even see this window? I didn't find a way to show it)", msgbox::IconType::Info).unwrap();
 
     Ok(())
 }
 
-fn parameters(plugin: &PluginBaseParams) -> Result<(), FilterError> {
+fn parameters(_plugin: &PluginBaseParams) -> Result<(), FilterError> {
     // here we should show a dialog with parameters
     // we don't have any parameters yet :P
 
     Ok(())
 }
 
-fn prepare(plugin: &PluginBaseParams, prepare: &PluginPrepareParams) -> Result<(), FilterError> {
+fn prepare(_plugin: &PluginBaseParams, prepare: PluginPrepareParams) -> Result<(), FilterError> {
     // Calculate memory requirements and allocate memory needed.
     // we don't use PS's memory managements, so I don't think we need to do anything here
     println!("{:#?}", prepare);
@@ -249,8 +285,8 @@ fn prepare(plugin: &PluginBaseParams, prepare: &PluginPrepareParams) -> Result<(
 }
 
 fn start(
-    plugin: &PluginBaseParams,
-    start: &PluginStartParams,
+    _plugin: &PluginBaseParams,
+    start: PluginStartParams,
 ) -> Result<PluginStartResult, FilterError> {
     // Check scripting parameters versus our parameters. Update if necessary.
     // Show UI if flagged/needed.
@@ -286,20 +322,26 @@ fn start(
 }
 
 fn r#continue(
-    plugin: &PluginBaseParams,
-    r#continue: &PluginContinueParams,
+    _plugin: &PluginBaseParams,
+    r#continue: PluginContinueParams,
 ) -> Result<PluginContinueResult, FilterError> {
     // Filter a portion of the image.
     // Update image rectangles for next pass.
 
     println!("{:#?}", r#continue);
+    let clean = mangai_clean::MangaiClean::new().unwrap();
+    println!("Loaded mangai clean model");
+
+    clean.clean_page(r#continue.in_data, r#continue.out_data);
+
+    println!("Cleaned page!");
 
     Ok(PluginContinueResult {
         request: InOutRequest::empty(),
     })
 }
 
-fn finish(plugin: &PluginBaseParams) -> Result<(), FilterError> {
+fn finish(_plugin: &PluginBaseParams) -> Result<(), FilterError> {
     // Clean up. Pass back scripting parameters.
 
     // we don't need to clean up anything
@@ -315,6 +357,8 @@ pub extern "C" fn PluginMain(
     plugin_data: &mut u32,
     result: &mut i16,
 ) {
+    // TODO: catch panics, we can't let those escape the FFI boundary
+
     console::setup_console();
     panic_handler::setup_panic();
 
@@ -331,17 +375,16 @@ pub extern "C" fn PluginMain(
         FilterSelector::Parameters => parameters(&plugin),
         FilterSelector::Prepare => prepare(
             &plugin,
-            &PluginPrepareParams::from_filter(filter_param_block),
+            PluginPrepareParams::from_filter(filter_param_block),
         ),
-        FilterSelector::Start => {
-            start(&plugin, &PluginStartParams::from_filter(filter_param_block)).map(|result| {
+        FilterSelector::Start => start(&plugin, PluginStartParams::from_filter(filter_param_block))
+            .map(|result| {
                 println!("start result: {:#?}", result);
                 result.to_filter(filter_param_block);
-            })
-        }
+            }),
         FilterSelector::Continue => r#continue(
             &plugin,
-            &PluginContinueParams::from_filter(filter_param_block),
+            PluginContinueParams::from_filter(filter_param_block),
         )
         .map(|result| {
             println!("continue result: {:#?}", result);

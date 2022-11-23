@@ -16,6 +16,9 @@ pub fn setup_panic() {
             } else {
                 message.push_str("unknown panic");
             }
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            message.push_str(&format!("\n\n{}", backtrace));
+
             msgbox::create("Panic", &message, msgbox::IconType::Error).unwrap();
         }));
     });
