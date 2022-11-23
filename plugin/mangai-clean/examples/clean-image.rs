@@ -1,8 +1,7 @@
 use camino::Utf8PathBuf;
 use clap::Parser;
 use mangai_clean::MangaiClean;
-use nshare::{MutNdarray2, MutNdarray3, ToNdarray3};
-use tract_onnx::prelude::tract_ndarray as ndarray;
+use nshare::{MutNdarray3, ToNdarray3};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -17,13 +16,15 @@ struct Args {
 }
 
 fn main() {
+    tracing_subscriber::fmt::init();
+
     let args = Args::parse();
 
     println!("Loading the image...");
     let image_image = image::open(args.input).unwrap();
     let image = image_image.to_rgb8().into_ndarray3();
 
-    let mut output_image = image::RgbImage::new(828, 1176);
+    let mut output_image = image::RgbImage::new(image_image.width(), image_image.height());
     println!("Loading the model...");
     let clean = MangaiClean::new().unwrap();
 
