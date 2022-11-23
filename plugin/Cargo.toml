@@ -6,3 +6,5 @@ members = [
     "mangai-clean-ps-plugin",
 ]
 
+[profile.release]
+debug = 1

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use ndarray::ShapeBuilder;
 use ndarray::Zip;
+use ndarray_vision::morphology::MorphologyExt;
 use tract_onnx::prelude::tract_ndarray as ndarray;
 use tract_onnx::prelude::*;
 
@@ -18,9 +19,13 @@ const IMAGE_HEIGHT: usize = 1176;
 const MODEL_INPUT_SHAPE: [usize; 4] = [1, 3, IMAGE_HEIGHT, IMAGE_WIDTH];
 const MODEL_OUTPUT_SHAPE: [usize; 4] = [1, 1, IMAGE_HEIGHT, IMAGE_WIDTH];
 
+const THRESHOLD: f32 = 0.0005;
+
 pub struct MangaiClean {
     model: OnnxModel,
 }
+
+// fn
 
 impl MangaiClean {
     pub fn new_from_bytes<B: prost::bytes::Buf>(bytes: B) -> Result<Self> {
@@ -44,7 +49,7 @@ impl MangaiClean {
     pub fn clean_page(
         &self,
         image_in: ndarray::ArrayView3<u8>,
-        image_out: ndarray::ArrayViewMut2<u8>,
+        mut image_out: ndarray::ArrayViewMut3<u8>,
     ) {
         let mut image_buf = ndarray::Array3::zeros(image_in.dim().into_shape());
         // image_in.mapv()
@@ -57,18 +62,41 @@ impl MangaiClean {
 
         // TODO: support other sizes
         assert_eq!(image_in.shape(), &MODEL_INPUT_SHAPE[1..]);
-        assert_eq!(image_out.shape(), &MODEL_OUTPUT_SHAPE[2..]);
+        assert_eq!(image_out.shape(), &MODEL_INPUT_SHAPE[1..]);
 
-        let image_in = image_buf.into_shape(MODEL_INPUT_SHAPE).unwrap(); // we need to copy =(
-        let mut image_out = image_out.into_shape(MODEL_OUTPUT_SHAPE).unwrap();
+        let image_buf = image_buf.into_shape(MODEL_INPUT_SHAPE).unwrap(); // we
 
-        let image_in = image_in.into();
+        let image_buf = image_buf.into();
 
-        let output = self.model.run(tvec!(image_in)).unwrap();
+        let model_output = self.model.run(tvec!(image_buf)).unwrap();
+        let model_output = model_output.into_iter().next().unwrap();
+        let model_output = Arc::try_unwrap(model_output)
+            .unwrap()
+            .into_array::<f32>()
+            .unwrap()
+            .into_shape(MODEL_OUTPUT_SHAPE)
+            .unwrap();
+        let model_output = model_output
+            .into_shape((1, IMAGE_HEIGHT, IMAGE_WIDTH))
+            .unwrap();
+        let mut mask = model_output.mapv(|x| x > THRESHOLD);
 
-        let output = output[0].to_array_view::<f32>().unwrap();
-        let output = output.mapv(|x| (x * 255.0) as u8);
+        let kern = ndarray::arr2(&[[true, true, true], [true, true, true], [true, true, true]]);
 
-        image_out.assign(&output);
+        let mut dilating_mask = mask.view_mut();
+        dilating_mask.swap_axes(0, 2);
+        dilating_mask.dilate_inplace(kern.view());
+        dilating_mask.dilate_inplace(kern.view());
+
+        let mask = mask.into_shape((IMAGE_HEIGHT, IMAGE_WIDTH)).unwrap();
+
+        // dbg!(image_in.shape());
+        // dbg!(mask.shape());
+        // dbg!(image_out.shape());
+
+        Zip::from(image_in)
+            .and(mask.broadcast(image_in.dim()).unwrap())
+            .and(&mut image_out)
+            .for_each(|&value, &mask, out| *out = if mask { 255 } else { value });
     }
 }
