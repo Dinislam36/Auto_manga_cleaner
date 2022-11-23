@@ -42,11 +42,11 @@ resource 'PiPL' ( 16000, "MangAI", purgeable )
 
 		SupportedModes
 		{
-			noBitmap, doesSupportGrayScale,
+			noBitmap, noGrayScale,
 			noIndexedColor, doesSupportRGBColor,
-			doesSupportCMYKColor, doesSupportHSLColor,
-			doesSupportHSBColor, doesSupportMultichannel,
-			doesSupportDuotone, doesSupportLABColor
+            noCMYKColor, noHSLColor,
+            noHSBColor, noMultichannel,
+            noDuotone, noLABColor
 		},
 
 		HasTerminology
@@ -57,11 +57,7 @@ resource 'PiPL' ( 16000, "MangAI", purgeable )
 			plugInUniqueID
 		},
 
-		EnableInfo { "in (PSHOP_ImageMode, RGBMode, GrayScaleMode,"
-		             "CMYKMode, HSLMode, HSBMode, MultichannelMode,"
-					 "DuotoneMode, LabMode, RGB48Mode, Gray16Mode) ||"
-					 "PSHOP_ImageDepth == 16 ||"
-					 "PSHOP_ImageDepth == 32" },
+		EnableInfo { "in (PSHOP_ImageMode, RGBMode)" },
 
 		PlugInMaxSize { 2000000, 2000000 },
 

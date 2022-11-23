@@ -54,7 +54,7 @@ BEGIN
 	"edom", /* 'mode' SupportedModes */
 	0L, /* Index */
 	    4L, /* Length */
-	0XC05F, /* Supported modes */
+	0X0010, /* Supported modes */
 	0, /* Reserved */
 
 	"MIB8", /* '8BIM' */
@@ -71,8 +71,8 @@ BEGIN
 	"MIB8", /* '8BIM' */
 	"lbne", /* 'enbl' EnableInfoProperty */
 	0L, /* Index */
-	  188L, /* Length */
-	"in (PSHOP_ImageMode, RGBMode, GrayScaleMode,CMYKMode, HSLMode, HSBMode, MultichannelMode,DuotoneMode, LabMode, RGB48Mode, Gray16Mode) ||PSHOP_ImageDepth == 16 ||PSHOP_ImageDepth == 32\0\0\0\0\0", 
+	   32L, /* Length */
+	"in (PSHOP_ImageMode, RGBMode)\0\0\0", 
 
 	"MIB8", /* '8BIM' */
 	"23sm", /* 'ms32' PlugInMaxSize */

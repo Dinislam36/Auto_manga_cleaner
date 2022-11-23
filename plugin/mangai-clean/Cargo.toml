@@ -10,7 +10,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 msgbox = "0.7.0"
+num_enum = "0.5.7"
 ps-sdk-sys = { path = "../ps-sdk-sys" }
+windows = { version = "0.43.0", features = ["Win32_System_Console", "Win32_Foundation"] }
 
 [build-dependencies]
 version_check = "0.9.4"
