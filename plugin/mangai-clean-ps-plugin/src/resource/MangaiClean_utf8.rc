@@ -1,0 +1,109 @@
+#define RSCL32(a,b,c,d)   0x ## c ## d, 0x ## a ## b
+#define LC(a,b,c,d)       #d, #c, #b, #a
+#define RSCS32(a)         a, 0
+
+STRINGTABLE	DISCARDABLE
+BEGIN
+	16000,
+	"Generic Plug-in\n\nVersion 2022 Release 1 (10/6/2021)\n© 1990-2021 Adobe. All rights reserved.\nAn example plug-in module for Adobe Photoshop®."
+END
+
+16000  PiPL  DISCARDABLE
+BEGIN
+	1, /* First byte must always be 1 */
+	0L, /* kCurrentPiPL Version */
+	   13L, /* Property count */
+	"MIB8", /* '8BIM' */
+	"dnik", /* 'kind' PIKindProperty */
+	0L, /* Index */
+	    4L, /* Length */
+	"MFB8", /* '8BFM' Photoshop Filter plug-in */
+
+	"MIB8", /* '8BIM' */
+	"eman", /* 'name' PINameProperty */
+	0L, /* Index */
+	   24L, /* Length */
+	"\023Clean Manga Page...\0\0\0\0", 
+
+	"MIB8", /* '8BIM' */
+	"gtac", /* 'catg' PICategoryProperty */
+	0L, /* Index */
+	    8L, /* Length */
+	"\006MangAI\0", 
+
+	"MIB8", /* '8BIM' */
+	"srev", /* 'vers' PIVersionProperty */
+	0L, /* Index */
+	    4L, /* Length */
+	0X00040000L, /* (Major << 16) | Minor */
+
+	"MIB8", /* '8BIM' */
+	"tpmc", /* 'cmpt' PIComponent */
+	0L, /* Index */
+	   24L, /* Length */
+	1507328L, /* Version */
+	"Generic Plug-in\0\0\0\0\0", /* Unique ID */
+
+	"MIB8", /* '8BIM' */
+	"4668", /* '8664' PIWin64X86CodeProperty */
+	0L, /* Index */
+	   12L, /* Length */
+	"PluginMain\0\0", 
+
+	"MIB8", /* '8BIM' */
+	"edom", /* 'mode' SupportedModes */
+	0L, /* Index */
+	    4L, /* Length */
+	0X0010, /* Supported modes */
+	0, /* Reserved */
+
+	"MIB8", /* '8BIM' */
+	"mtsh", /* 'hstm' PITerminology */
+	0L, /* Index */
+	   56L, /* Length */
+	0L, /* Version */
+	"iagm", /* Class ID */
+	"iagm", /* Event ID */
+	16000, /* Terminology ID */
+	"7eb8ac17-4a2e-4c9f-bfb4-aa41f930148b\0\0\0\0", /* Unique string */
+	    0, /* Padding */
+
+	"MIB8", /* '8BIM' */
+	"lbne", /* 'enbl' EnableInfoProperty */
+	0L, /* Index */
+	   32L, /* Length */
+	"in (PSHOP_ImageMode, RGBMode)\0\0\0", 
+
+	"MIB8", /* '8BIM' */
+	"23sm", /* 'ms32' PlugInMaxSize */
+	0L, /* Index */
+	    8L, /* Length */
+	2000000L, 
+	2000000L, 
+
+	"MIB8", /* '8BIM' */
+	"asmp", /* 'pmsa' MonitorScalingAware */
+	0L, /* Index */
+	    4L, /* Length */
+	1L, 
+
+	"MIB8", /* '8BIM' */
+	"yllf", /* 'flly' PIFilterLayerSupport */
+	0L, /* Index */
+	    4L, /* Length */
+	0X00000080L, 
+
+	"MIB8", /* '8BIM' */
+	"icif", /* 'fici' PIFilterCaseInfoProperty */
+	0L, /* Index */
+	   28L, /* Length */
+	0X00060404L, 
+	0X000E0404L, 
+	0X000E0404L, 
+	0X00060404L, 
+	0X000E0404L, 
+	0X00060404L, 
+	0X000E0404L, 
+
+END
+

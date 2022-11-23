@@ -3,5 +3,6 @@
 members = [
     "ps-sdk-sys",
     "mangai-clean",
+    "mangai-clean-ps-plugin",
 ]
 

@@ -5,14 +5,6 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[lib]
-crate-type = ["cdylib"]
-
 [dependencies]
-msgbox = "0.7.0"
-num_enum = "0.5.7"
-ps-sdk-sys = { path = "../ps-sdk-sys" }
-windows = { version = "0.43.0", features = ["Win32_System_Console", "Win32_Foundation"] }
-
-[build-dependencies]
-version_check = "0.9.4"
+tract-onnx = "0.18.3"
+#onnxruntime = "0.0.14"
