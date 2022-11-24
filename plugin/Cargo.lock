@@ -1420,6 +1420,7 @@ dependencies = [
  "camino",
  "clap",
  "image",
+ "ndarray",
  "ndarray-vision",
  "nshare",
  "prost",

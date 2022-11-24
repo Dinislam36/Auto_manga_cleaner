@@ -1,5 +1,4 @@
-use crate::ndarray;
-use crate::{BATCH_HEIGHT, BATCH_WIDTH};
+use crate::model::{BATCH_HEIGHT, BATCH_WIDTH};
 use ndarray::{s, Ix3, SliceInfo, SliceInfoElem};
 
 #[derive(Debug, Clone, Copy)]
