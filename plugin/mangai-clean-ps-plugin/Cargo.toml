@@ -10,7 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 ps-sdk-sys = { path = "../ps-sdk-sys" }
-mangai-clean = { path = "../mangai-clean" }
+mangai-clean = { path = "../mangai-clean", default-features = false, features = ["onnxruntime-backend"] }
 
 msgbox = "0.7.0"
 num_enum = "0.5.7"
