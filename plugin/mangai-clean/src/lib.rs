@@ -1,7 +1,7 @@
 use crate::model::{BATCH_HEIGHT, BATCH_WIDTH, MODEL_INPUT_SHAPE, THRESHOLD};
 use anyhow::Result;
-use ndarray::Zip;
-use ndarray::{Array3, ArrayView3, ArrayViewMut2, ShapeBuilder, SliceInfo};
+use ndarray::{s, Array3, ArrayView3, ArrayViewMut2, CowArray, ShapeBuilder, SliceInfo};
+use ndarray::{ArrayViewMut3, Zip};
 use ndarray_vision::morphology::MorphologyExt;
 use std::ops::Deref;
 use tracing::info;
@@ -74,19 +74,27 @@ impl MangaiClean {
         });
     }
 
-    pub fn clean_page(
-        &self,
-        image_in: ndarray::ArrayView3<u8>,
-        mut image_out: ndarray::ArrayViewMut3<u8>,
-    ) {
+    pub fn clean_page(&self, image_in: ArrayView3<u8>, mut image_out: ArrayViewMut3<u8>) {
         assert_eq!(image_in.dim(), image_out.dim());
 
-        let (channels, height, width) = image_in.dim();
+        let (channels, orig_height, orig_width) = image_in.dim();
         assert_eq!(channels, 3);
 
-        if height < model::BATCH_HEIGHT || width < model::BATCH_WIDTH {
-            todo!("handle small images");
-        }
+        // pad the image if it's too small
+        let (image_in, height, width) = if orig_height < BATCH_HEIGHT || orig_width < BATCH_WIDTH {
+            info!(
+                "Padding the image to fit the batch size ({}x{})",
+                BATCH_WIDTH, BATCH_HEIGHT
+            );
+            let mut padded_image = Array3::from_elem((3, BATCH_HEIGHT, BATCH_WIDTH), 255u8);
+            padded_image
+                .slice_mut(s![.., ..orig_height, ..orig_width])
+                .assign(&image_in);
+
+            (CowArray::from(padded_image), BATCH_HEIGHT, BATCH_WIDTH)
+        } else {
+            (CowArray::from(image_in), orig_height, orig_width)
+        };
 
         let mut mask = ndarray::Array2::from_shape_fn((height, width), |_| false);
 
@@ -103,9 +111,13 @@ impl MangaiClean {
             self.clean_one_batch(image_in, mask_out);
         }
 
+        // slice the image to undo the padding
+        let image_in = image_in.slice(s![.., ..orig_height, ..orig_width]);
+        let mask = mask.slice(s![..orig_height, ..orig_width]);
+
         Zip::from(&mut image_out)
             .and(mask.broadcast(image_in.dim()).unwrap())
-            .and(image_in)
+            .and(&image_in)
             .for_each(|out, &mask, &value| {
                 if mask {
                     *out = 255;
