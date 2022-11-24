@@ -96,7 +96,7 @@ pub fn get_model(progress: &mut dyn ProgressReporter) -> Result<Vec<u8>> {
         total_read += read;
         bytes.extend_from_slice(&buffer[..read]);
 
-        if prev_progress.elapsed().as_secs() >= 1 {
+        if prev_progress.elapsed().as_millis() >= 250 {
             progress.progress(total_read);
             prev_progress = Instant::now();
         }

@@ -4,6 +4,7 @@ extern crate intel_mkl_src as _src;
 mod console;
 mod panic_handler;
 mod point;
+mod progress;
 mod rect;
 
 use ndarray::{
@@ -44,6 +45,8 @@ impl PluginBaseParams {
         unsafe { (self.test_abort_cb)() != 0 }
     }
 
+    // We do our own progress reporting
+    #[allow(unused)]
     pub fn report_progress(&self, done: i32, total: i32) {
         unsafe { (self.progress_cb)(done, total) }
     }
@@ -293,29 +296,10 @@ impl PluginContinueResult {
 #[allow(unused)]
 #[repr(i16)]
 enum FilterError {
+    Other = -1,
+
     BadParameters = ps_sdk_sys::filterBadParameters as i16,
     BadMode = ps_sdk_sys::filterBadMode as i16,
-}
-
-struct PsProgressReporter<'a> {
-    params: &'a PluginBaseParams,
-    total: i32,
-}
-
-impl<'a> PsProgressReporter<'a> {
-    pub fn new(params: &'a PluginBaseParams) -> Self {
-        Self { params, total: 0 }
-    }
-}
-
-impl<'a> mangai_clean::ProgressReporter for PsProgressReporter<'a> {
-    fn init(&mut self, total: usize) {
-        self.total = total as i32;
-    }
-
-    fn progress(&mut self, progress: usize) {
-        self.params.report_progress(progress as i32, self.total);
-    }
 }
 
 fn about(_plugin: &PluginBaseParams) -> Result<(), FilterError> {
@@ -380,39 +364,38 @@ fn start(
 }
 
 fn r#continue(
-    plugin: &PluginBaseParams,
+    _plugin: &PluginBaseParams,
     r#continue: PluginContinueParams,
 ) -> Result<PluginContinueResult, FilterError> {
     // Filter a portion of the image.
     // Update image rectangles for next pass.
 
     info!("{:#?}", r#continue);
-    let clean = mangai_clean::MangaiClean::new().unwrap();
-    info!("Loaded mangai clean model");
 
-    match r#continue.in_data.shape() {
-        [_, _] => {
-            // grayscale
-            let in_data = r#continue.in_data.into_dimensionality::<Ix2>().unwrap();
-            let out_data = r#continue.out_data.into_dimensionality::<Ix2>().unwrap();
+    progress::run_with_progress(|progress| {
+        let clean = mangai_clean::MangaiClean::new(progress).unwrap();
+        info!("Loaded mangai clean model");
 
-            clean.clean_grayscale_page(
-                in_data,
-                out_data,
-                Box::new(PsProgressReporter::new(plugin)),
-            );
+        match r#continue.in_data.shape() {
+            [_, _] => {
+                // grayscale
+                let in_data = r#continue.in_data.into_dimensionality::<Ix2>().unwrap();
+                let out_data = r#continue.out_data.into_dimensionality::<Ix2>().unwrap();
+
+                clean.clean_grayscale_page(in_data, out_data, progress);
+            }
+            [3, _, _] => {
+                // RGB
+                let in_data = r#continue.in_data.into_dimensionality::<Ix3>().unwrap();
+                let out_data = r#continue.out_data.into_dimensionality::<Ix3>().unwrap();
+
+                clean.clean_page(in_data, out_data, progress);
+            }
+            _ => unimplemented!(),
         }
-        [3, _, _] => {
-            // RGB
-            let in_data = r#continue.in_data.into_dimensionality::<Ix3>().unwrap();
-            let out_data = r#continue.out_data.into_dimensionality::<Ix3>().unwrap();
 
-            clean.clean_page(in_data, out_data, Box::new(PsProgressReporter::new(plugin)));
-        }
-        _ => unimplemented!(),
-    }
-
-    info!("Cleaned page!");
+        info!("Cleaned page!");
+    });
 
     Ok(PluginContinueResult {
         request: InOutRequest::empty(),

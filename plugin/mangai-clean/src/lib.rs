@@ -12,6 +12,7 @@ mod batcher;
 mod model;
 mod model_registry;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProgressKind {
     Items,
     Bytes,
