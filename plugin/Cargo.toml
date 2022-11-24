@@ -6,5 +6,14 @@ members = [
     "mangai-clean-ps-plugin",
 ]
 
+[workspace.dependencies]
+ndarray = "0.15.6"
+ndarray-linalg = "0.16.0"
+ndarray-vision = "0.4.0"
+
+tract-onnx = "0.18.4"
+# VOICEVOX fork seems to be the most maintained
+onnxruntime = { git = "https://github.com/VOICEVOX/onnxruntime-rs.git", rev="bee215aaf6d5e346d96e0724acd02a51f612a72e" }
+
 [profile.release]
 debug = 1

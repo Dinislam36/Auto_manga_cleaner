@@ -3,34 +3,42 @@ use anyhow::Result;
 use ndarray::prelude::*;
 use ndarray::Zip;
 use ndarray_vision::morphology::MorphologyExt;
-use std::io;
-use tract_onnx::prelude::*;
+use once_cell::sync::Lazy;
+use onnxruntime;
+use onnxruntime::environment::Environment;
+use onnxruntime::session::{AnyArray, Session};
+use onnxruntime::GraphOptimizationLevel;
+use std::ops::Deref;
+use std::sync::Mutex;
 
-type OnnxModel = RunnableModel<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
+static ENVIRONMENT: Lazy<Environment> = Lazy::new(|| {
+    Environment::builder()
+        .with_name("mangai")
+        .with_log_level(onnxruntime::LoggingLevel::Warning)
+        .build()
+        .unwrap()
+});
 
 pub struct Model {
-    model: OnnxModel,
+    session: Mutex<Session<'static>>,
 }
 
 impl Model {
     pub fn new_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Self> {
-        use prost::Message;
-        use tract_onnx::pb::ModelProto;
+        let session = ENVIRONMENT
+            .new_session_builder()?
+            .with_optimization_level(GraphOptimizationLevel::All)?
+            // TODO: threads??
+            // .with_intra_op_num_threads(1)?
+            .with_model_from_memory(bytes)?;
+        let session = Mutex::new(session);
 
-        let bytes = io::Cursor::new(bytes.as_ref());
-        let model = ModelProto::decode(bytes)?;
-        let model = onnx()
-            .model_for_proto_model(&model)?
-            .into_optimized()? // TODO: this can clearly be done at compile time
-            .into_runnable()?;
-
-        Ok(Self { model })
+        Ok(Self { session })
     }
 
     pub fn clean_one_batch(&self, image_in: ArrayView3<u8>, mut mask_out: ArrayViewMut2<bool>) {
         let mut image_buf = Array3::zeros(image_in.dim().into_shape());
-        // image_in.mapv()
-        // let image_in = image_in.;
+        // TODO: most of this code can be shared with the tract version
         Zip::from(&mut image_buf).and(image_in).for_each(|a, b| {
             let f = *b as f32 / 255.0;
             // normalize
@@ -43,21 +51,24 @@ impl Model {
         let image_buf = image_buf
             .into_shape(MODEL_INPUT_SHAPE)
             .unwrap()
-            .into_owned(); // we
-        let image_buf = image_buf.into();
+            .into_owned();
 
-        let model_output = self.model.run(tvec!(image_buf)).unwrap();
-        let model_output = model_output.into_iter().next().unwrap();
-        let model_output = Arc::try_unwrap(model_output)
-            .unwrap()
-            .into_array::<f32>()
-            .unwrap()
-            .into_shape(MODEL_OUTPUT_SHAPE)
-            .unwrap();
+        let mut image_buf = onnxruntime::session::NdArray::new(image_buf);
+
+        let input_tensor: Vec<&mut dyn AnyArray> = vec![&mut image_buf];
+
+        let model_output = {
+            let mut session = self.session.lock().unwrap();
+            let model_output = session.run(input_tensor).unwrap();
+
+            let model_output = model_output.into_iter().next().unwrap().deref().to_owned();
+            model_output
+        };
+        let model_output = model_output.into_shape(MODEL_OUTPUT_SHAPE).unwrap();
         let model_output = model_output
             .into_shape((1, BATCH_HEIGHT, BATCH_WIDTH))
             .unwrap();
-        let mut mask = model_output.mapv(|x| x > THRESHOLD);
+        let mut mask = model_output.mapv(|x: f32| x > THRESHOLD);
 
         let kern = arr2(&[[true, true, true], [true, true, true], [true, true, true]]);
 

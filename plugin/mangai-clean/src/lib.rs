@@ -19,14 +19,14 @@ pub struct MangaiClean {
 }
 
 impl MangaiClean {
-    pub fn new_from_bytes<B: prost::bytes::Buf>(bytes: B) -> Result<Self> {
+    pub fn new_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Self> {
         let model = model::Model::new_from_bytes(bytes)?;
         Ok(Self { model })
     }
 
     pub fn new() -> Result<Self> {
         let bytes = std::fs::read(MODEL_PATH)?;
-        Self::new_from_bytes(bytes.as_ref())
+        Self::new_from_bytes(bytes)
     }
 
     pub fn clean_page(
