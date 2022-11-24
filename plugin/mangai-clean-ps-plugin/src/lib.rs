@@ -309,7 +309,7 @@ impl<'a> PsProgressReporter<'a> {
 }
 
 impl<'a> mangai_clean::ProgressReporter for PsProgressReporter<'a> {
-    fn total(&mut self, total: usize) {
+    fn init(&mut self, total: usize) {
         self.total = total as i32;
     }
 

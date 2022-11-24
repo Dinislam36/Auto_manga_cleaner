@@ -18,6 +18,11 @@ tract-onnx = { workspace = true, optional = true }
 onnxruntime = { workspace = true, optional = true }
 once_cell = "1.16.0"
 
+ureq = { version = "2.5.0", features = ["tls"] }
+directories = "4.0.1"
+sha2 = "0.10.6"
+hex = "0.4.3"
+
 [features]
 default = ["tract-backend"]
 tract-backend = ["tract-onnx"]

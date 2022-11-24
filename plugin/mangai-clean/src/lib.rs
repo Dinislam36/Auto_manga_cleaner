@@ -10,17 +10,17 @@ use tracing::info;
 
 mod batcher;
 mod model;
+mod model_registry;
 
-// TODO: add a mechanism to download a model during build time or smth
-// otherwise building becomes a pain
-// const MODEL_ONNX: &'static [u8] = include_bytes!("../model.onnx");
-
-// TODO: this will not work, lol
-const MODEL_PATH: &'static str = concat!(env!("CARGO_MANIFEST_DIR"), "/model.onnx");
+pub enum ProgressKind {
+    Items,
+    Bytes,
+}
 
 pub trait ProgressReporter {
-    fn total(&mut self, total: usize);
+    fn init(&mut self, kind: ProgressKind, operation: &str, total: usize);
     fn progress(&mut self, progress: usize);
+    fn finish(&mut self);
 }
 
 pub struct MangaiClean {
@@ -33,8 +33,8 @@ impl MangaiClean {
         Ok(Self { model })
     }
 
-    pub fn new() -> Result<Self> {
-        let bytes = std::fs::read(MODEL_PATH)?;
+    pub fn new(progress: &mut dyn ProgressReporter) -> Result<Self> {
+        let bytes = model_registry::get_model(progress)?;
         Self::new_from_bytes(bytes)
     }
 
@@ -81,11 +81,11 @@ impl MangaiClean {
         });
     }
 
-    pub fn clean_page<'a>(
+    pub fn clean_page(
         &self,
         image_in: ArrayView3<u8>,
         mut image_out: ArrayViewMut3<u8>,
-        mut progress_reporter: Box<dyn ProgressReporter + 'a>,
+        progress_reporter: &mut dyn ProgressReporter,
     ) {
         assert_eq!(image_in.dim(), image_out.dim());
 
@@ -111,7 +111,7 @@ impl MangaiClean {
         let mut mask = ndarray::Array2::from_shape_fn((height, width), |_| false);
 
         let batcher = batcher::Batcher::new(height, width);
-        progress_reporter.total(batcher.num_batches());
+        progress_reporter.init(ProgressKind::Items, "Cleaning manga", batcher.num_batches());
         for (i, slice) in batcher.iter().enumerate() {
             progress_reporter.progress(i);
             info!("Processing batch #{}/{}", i + 1, batcher.num_batches());
@@ -125,7 +125,7 @@ impl MangaiClean {
             self.clean_one_batch(image_in, mask_out);
         }
 
-        progress_reporter.progress(batcher.num_batches());
+        progress_reporter.finish();
 
         // slice the image to undo the padding
         let image_in = image_in.slice(s![.., ..orig_height, ..orig_width]);
@@ -143,11 +143,11 @@ impl MangaiClean {
             });
     }
 
-    pub fn clean_grayscale_page<'a>(
+    pub fn clean_grayscale_page(
         &self,
         image_in: ArrayView2<u8>,
         mut image_out: ArrayViewMut2<u8>,
-        mut progress_reporter: Box<dyn ProgressReporter + 'a>,
+        progress_reporter: &mut dyn ProgressReporter,
     ) {
         assert_eq!(image_in.dim(), image_out.dim());
 
@@ -172,7 +172,7 @@ impl MangaiClean {
         let mut mask = ndarray::Array2::from_shape_fn((height, width), |_| false);
 
         let batcher = batcher::Batcher::new(height, width);
-        progress_reporter.total(batcher.num_batches());
+        progress_reporter.init(ProgressKind::Items, "Cleaning Manga", batcher.num_batches());
         for (i, slice) in batcher.iter().enumerate() {
             progress_reporter.progress(i);
             info!("Processing batch #{}/{}", i + 1, batcher.num_batches());

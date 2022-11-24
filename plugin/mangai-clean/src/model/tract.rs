@@ -2,6 +2,7 @@ use super::MODEL_OUTPUT_SHAPE;
 use anyhow::Result;
 use ndarray::prelude::*;
 use std::io;
+use tracing::info;
 use tract_onnx::prelude::*;
 
 type OnnxModel = RunnableModel<TypedFact, Box<dyn TypedOp>, Graph<TypedFact, Box<dyn TypedOp>>>;
@@ -14,6 +15,8 @@ impl Model {
     pub fn new_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Self> {
         use prost::Message;
         use tract_onnx::pb::ModelProto;
+
+        info!("Creating inference session with tract");
 
         let bytes = io::Cursor::new(bytes.as_ref());
         let model = ModelProto::decode(bytes)?;

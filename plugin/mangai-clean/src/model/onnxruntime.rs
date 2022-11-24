@@ -7,6 +7,7 @@ use onnxruntime::session::{AnyArray, Session};
 use onnxruntime::GraphOptimizationLevel;
 use std::ops::Deref;
 use std::sync::Mutex;
+use tracing::info;
 
 static ENVIRONMENT: Lazy<Environment> = Lazy::new(|| {
     Environment::builder()
@@ -22,6 +23,8 @@ pub struct Model {
 
 impl Model {
     pub fn new_from_bytes<B: AsRef<[u8]>>(bytes: B) -> Result<Self> {
+        info!("Creating inference session with onnxruntime");
+
         let session = ENVIRONMENT
             .new_session_builder()?
             .with_optimization_level(GraphOptimizationLevel::All)?
