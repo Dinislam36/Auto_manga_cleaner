@@ -1,7 +1,7 @@
 use camino::Utf8PathBuf;
 use clap::Parser;
 use mangai_clean::MangaiClean;
-use nshare::{MutNdarray3, ToNdarray3};
+use nshare::{MutNdarray2, ToNdarray2};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -44,16 +44,16 @@ fn main() {
 
     println!("Loading the image...");
     let image_image = image::open(args.input).unwrap();
-    let image = image_image.to_rgb8().into_ndarray3();
+    let image = image_image.to_luma8().into_ndarray2();
 
-    let mut output_image = image::RgbImage::new(image_image.width(), image_image.height());
+    let mut output_image = image::GrayImage::new(image_image.width(), image_image.height());
     println!("Loading the model...");
     let clean = MangaiClean::new().unwrap();
 
     println!("Cleaning the image...");
-    clean.clean_page(
+    clean.clean_grayscale_page(
         image.view(),
-        output_image.mut_ndarray3(),
+        output_image.mut_ndarray2(),
         Box::new(IndicatifProgress::new()),
     );
 

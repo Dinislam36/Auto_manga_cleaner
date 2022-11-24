@@ -1,6 +1,8 @@
 use crate::model::{BATCH_HEIGHT, BATCH_WIDTH, MODEL_INPUT_SHAPE, THRESHOLD};
 use anyhow::Result;
-use ndarray::{s, Array3, ArrayView3, ArrayViewMut2, CowArray, ShapeBuilder, SliceInfo};
+use ndarray::{
+    s, Array2, Array3, ArrayView2, ArrayView3, ArrayViewMut2, CowArray, ShapeBuilder, SliceInfo,
+};
 use ndarray::{ArrayViewMut3, Zip};
 use ndarray_vision::morphology::MorphologyExt;
 use std::ops::Deref;
@@ -131,6 +133,69 @@ impl MangaiClean {
 
         Zip::from(&mut image_out)
             .and(mask.broadcast(image_in.dim()).unwrap())
+            .and(&image_in)
+            .for_each(|out, &mask, &value| {
+                if mask {
+                    *out = 255;
+                } else {
+                    *out = value;
+                }
+            });
+    }
+
+    pub fn clean_grayscale_page<'a>(
+        &self,
+        image_in: ArrayView2<u8>,
+        mut image_out: ArrayViewMut2<u8>,
+        mut progress_reporter: Box<dyn ProgressReporter + 'a>,
+    ) {
+        assert_eq!(image_in.dim(), image_out.dim());
+
+        let (orig_height, orig_width) = image_in.dim();
+
+        // pad the image if it's too small
+        let (image_in, height, width) = if orig_height < BATCH_HEIGHT || orig_width < BATCH_WIDTH {
+            info!(
+                "Padding the image to fit the batch size ({}x{})",
+                BATCH_WIDTH, BATCH_HEIGHT
+            );
+            let mut padded_image = Array2::from_elem((BATCH_HEIGHT, BATCH_WIDTH), 255u8);
+            padded_image
+                .slice_mut(s![..orig_height, ..orig_width])
+                .assign(&image_in);
+
+            (CowArray::from(padded_image), BATCH_HEIGHT, BATCH_WIDTH)
+        } else {
+            (CowArray::from(image_in), orig_height, orig_width)
+        };
+
+        let mut mask = ndarray::Array2::from_shape_fn((height, width), |_| false);
+
+        let batcher = batcher::Batcher::new(height, width);
+        progress_reporter.total(batcher.num_batches());
+        for (i, slice) in batcher.iter().enumerate() {
+            progress_reporter.progress(i);
+            info!("Processing batch #{}/{}", i + 1, batcher.num_batches());
+
+            let image_in = image_in.broadcast((3, height, width)).unwrap();
+            let image_in = image_in.slice(slice);
+
+            let mask_slice = [slice.deref()[1], slice.deref()[2]];
+            let mask_slice = SliceInfo::try_from(mask_slice).unwrap();
+
+            let mask_out = mask.slice_mut(mask_slice);
+
+            self.clean_one_batch(image_in, mask_out);
+        }
+
+        progress_reporter.progress(batcher.num_batches());
+
+        // slice the image to undo the padding
+        let image_in = image_in.slice(s![..orig_height, ..orig_width]);
+        let mask = mask.slice(s![..orig_height, ..orig_width]);
+
+        Zip::from(&mut image_out)
+            .and(mask)
             .and(&image_in)
             .for_each(|out, &mask, &value| {
                 if mask {
