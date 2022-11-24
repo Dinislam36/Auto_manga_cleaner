@@ -1,6 +1,8 @@
+use crate::model::{BATCH_HEIGHT, BATCH_WIDTH, MODEL_INPUT_SHAPE, THRESHOLD};
 use anyhow::Result;
-use ndarray::SliceInfo;
 use ndarray::Zip;
+use ndarray::{Array3, ArrayView3, ArrayViewMut2, ShapeBuilder, SliceInfo};
+use ndarray_vision::morphology::MorphologyExt;
 use std::ops::Deref;
 use tracing::info;
 
@@ -29,6 +31,49 @@ impl MangaiClean {
         Self::new_from_bytes(bytes)
     }
 
+    pub fn clean_one_batch(&self, image_in: ArrayView3<u8>, mut mask_out: ArrayViewMut2<bool>) {
+        let mut image_buf = Array3::zeros(image_in.dim().into_shape());
+        // TODO: most of this code can be shared with the tract version
+        Zip::from(&mut image_buf).and(image_in).for_each(|a, b| {
+            let f = *b as f32 / 255.0;
+            // normalize
+            *a = (f - 0.5) / 0.5;
+        });
+
+        assert_eq!(image_in.shape(), &MODEL_INPUT_SHAPE[1..]);
+        assert_eq!(mask_out.shape(), &MODEL_INPUT_SHAPE[2..]);
+
+        let image_buf = image_buf
+            .into_shape(MODEL_INPUT_SHAPE)
+            .unwrap()
+            .into_owned();
+
+        let model_output = self.model.run_model(image_buf);
+
+        let model_output = model_output
+            .into_shape((1, BATCH_HEIGHT, BATCH_WIDTH))
+            .unwrap();
+        let mut mask = model_output.mapv(|x: f32| x > THRESHOLD);
+
+        let kern = ndarray::arr2(&[[true, true, true], [true, true, true], [true, true, true]]);
+
+        let mut dilating_mask = mask.view_mut();
+        dilating_mask.swap_axes(0, 2);
+        dilating_mask.dilate_inplace(kern.view());
+        dilating_mask.dilate_inplace(kern.view());
+
+        let mask = mask.into_shape((BATCH_HEIGHT, BATCH_WIDTH)).unwrap();
+
+        // perform OR operation on intersecting areas
+        // it's not really clear how this affects the result, but let's try it
+
+        Zip::from(&mut mask_out).and(&mask).for_each(|a, &b| {
+            if b {
+                *a = true;
+            }
+        });
+    }
+
     pub fn clean_page(
         &self,
         image_in: ndarray::ArrayView3<u8>,
@@ -55,7 +100,7 @@ impl MangaiClean {
 
             let mask_out = mask.slice_mut(mask_slice);
 
-            self.model.clean_one_batch(image_in, mask_out);
+            self.clean_one_batch(image_in, mask_out);
         }
 
         Zip::from(&mut image_out)

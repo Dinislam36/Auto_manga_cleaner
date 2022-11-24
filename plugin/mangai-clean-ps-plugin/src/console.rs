@@ -1,5 +1,4 @@
 use std::sync::Once;
-use tracing_subscriber::fmt::format::FmtSpan;
 
 static ONCE: Once = Once::new();
 
