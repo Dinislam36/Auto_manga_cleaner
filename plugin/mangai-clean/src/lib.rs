@@ -16,6 +16,11 @@ mod model;
 // TODO: this will not work, lol
 const MODEL_PATH: &'static str = concat!(env!("CARGO_MANIFEST_DIR"), "/model.onnx");
 
+pub trait ProgressReporter {
+    fn total(&mut self, total: usize);
+    fn progress(&mut self, progress: usize);
+}
+
 pub struct MangaiClean {
     model: model::Model,
 }
@@ -74,7 +79,12 @@ impl MangaiClean {
         });
     }
 
-    pub fn clean_page(&self, image_in: ArrayView3<u8>, mut image_out: ArrayViewMut3<u8>) {
+    pub fn clean_page<'a>(
+        &self,
+        image_in: ArrayView3<u8>,
+        mut image_out: ArrayViewMut3<u8>,
+        mut progress_reporter: Box<dyn ProgressReporter + 'a>,
+    ) {
         assert_eq!(image_in.dim(), image_out.dim());
 
         let (channels, orig_height, orig_width) = image_in.dim();
@@ -99,7 +109,9 @@ impl MangaiClean {
         let mut mask = ndarray::Array2::from_shape_fn((height, width), |_| false);
 
         let batcher = batcher::Batcher::new(height, width);
+        progress_reporter.total(batcher.num_batches());
         for (i, slice) in batcher.iter().enumerate() {
+            progress_reporter.progress(i);
             info!("Processing batch #{}/{}", i + 1, batcher.num_batches());
 
             let image_in = image_in.slice(slice);
@@ -110,6 +122,8 @@ impl MangaiClean {
 
             self.clean_one_batch(image_in, mask_out);
         }
+
+        progress_reporter.progress(batcher.num_batches());
 
         // slice the image to undo the padding
         let image_in = image_in.slice(s![.., ..orig_height, ..orig_width]);

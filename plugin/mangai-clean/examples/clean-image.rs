@@ -15,6 +15,28 @@ struct Args {
     output: Utf8PathBuf,
 }
 
+struct IndicatifProgress {
+    pb: Option<indicatif::ProgressBar>,
+}
+
+impl IndicatifProgress {
+    fn new() -> Self {
+        Self { pb: None }
+    }
+}
+
+impl mangai_clean::ProgressReporter for IndicatifProgress {
+    fn total(&mut self, total: usize) {
+        self.pb = Some(indicatif::ProgressBar::new(total as u64));
+    }
+
+    fn progress(&mut self, current: usize) {
+        if let Some(pb) = &self.pb {
+            pb.set_position(current as u64);
+        }
+    }
+}
+
 fn main() {
     tracing_subscriber::fmt::init();
 
@@ -29,7 +51,11 @@ fn main() {
     let clean = MangaiClean::new().unwrap();
 
     println!("Cleaning the image...");
-    clean.clean_page(image.view(), output_image.mut_ndarray3());
+    clean.clean_page(
+        image.view(),
+        output_image.mut_ndarray3(),
+        Box::new(IndicatifProgress::new()),
+    );
 
     println!("Saving the image...");
     output_image.save(args.output).unwrap();

@@ -15,6 +15,7 @@ use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use tracing::info;
 
+#[allow(unused)]
 struct PluginBaseParams {
     test_abort_cb: unsafe extern "C" fn() -> Boolean,
     progress_cb: unsafe extern "C" fn(done: int32, total: int32),
@@ -34,6 +35,8 @@ impl PluginBaseParams {
         }
     }
 
+    // TODO: support user abort
+    #[allow(unused)]
     pub fn is_aborted(&self) -> bool {
         unsafe { (self.test_abort_cb)() != 0 }
     }
@@ -42,6 +45,7 @@ impl PluginBaseParams {
         unsafe { (self.progress_cb)(done, total) }
     }
 
+    #[allow(unused)]
     pub unsafe fn call_host(&self, selector: i16, data: *mut isize) {
         (self.host_cb)(selector, data)
     }
@@ -58,6 +62,7 @@ enum FilterSelector {
     Finish = ps_sdk_sys::filterSelectorFinish as u16,
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 struct PluginPrepareParams {
     image_size: Point,
@@ -100,6 +105,7 @@ enum ImageMode {
     Gray32 = ps_sdk_sys::plugInModeGray32 as i16,
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 struct PluginStartParams {
     image_size: Point,
@@ -258,10 +264,32 @@ impl PluginContinueResult {
     }
 }
 
+#[allow(unused)]
 #[repr(i16)]
 enum FilterError {
     BadParameters = ps_sdk_sys::filterBadParameters as i16,
     BadMode = ps_sdk_sys::filterBadMode as i16,
+}
+
+struct PsProgressReporter<'a> {
+    params: &'a PluginBaseParams,
+    total: i32,
+}
+
+impl<'a> PsProgressReporter<'a> {
+    pub fn new(params: &'a PluginBaseParams) -> Self {
+        Self { params, total: 0 }
+    }
+}
+
+impl<'a> mangai_clean::ProgressReporter for PsProgressReporter<'a> {
+    fn total(&mut self, total: usize) {
+        self.total = total as i32;
+    }
+
+    fn progress(&mut self, progress: usize) {
+        self.params.report_progress(progress as i32, self.total);
+    }
 }
 
 fn about(_plugin: &PluginBaseParams) -> Result<(), FilterError> {
@@ -323,7 +351,7 @@ fn start(
 }
 
 fn r#continue(
-    _plugin: &PluginBaseParams,
+    plugin: &PluginBaseParams,
     r#continue: PluginContinueParams,
 ) -> Result<PluginContinueResult, FilterError> {
     // Filter a portion of the image.
@@ -333,7 +361,11 @@ fn r#continue(
     let clean = mangai_clean::MangaiClean::new().unwrap();
     info!("Loaded mangai clean model");
 
-    clean.clean_page(r#continue.in_data, r#continue.out_data);
+    clean.clean_page(
+        r#continue.in_data,
+        r#continue.out_data,
+        Box::new(PsProgressReporter::new(plugin)),
+    );
 
     info!("Cleaned page!");
 
