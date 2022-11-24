@@ -13,6 +13,7 @@ use ps_sdk_sys::{int16, int32, Boolean, FilterRecord};
 use rect::Rect;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
+use tracing::info;
 
 struct PluginBaseParams {
     test_abort_cb: unsafe extern "C" fn() -> Boolean,
@@ -279,7 +280,7 @@ fn parameters(_plugin: &PluginBaseParams) -> Result<(), FilterError> {
 fn prepare(_plugin: &PluginBaseParams, prepare: PluginPrepareParams) -> Result<(), FilterError> {
     // Calculate memory requirements and allocate memory needed.
     // we don't use PS's memory managements, so I don't think we need to do anything here
-    println!("{:#?}", prepare);
+    info!("{:#?}", prepare);
 
     Ok(())
 }
@@ -295,14 +296,14 @@ fn start(
     // and, actually, this is where most of the processing should be done
 
     if start.image_mode != ImageMode::RGBColor || start.depth != 8 || start.planes != 3 {
-        println!(
+        info!(
             "Bad mode: {:?} (we only support RGBColor for now)",
             start.image_mode
         );
         return Err(FilterError::BadMode);
     }
 
-    println!("{:#?}", start);
+    info!("{:#?}", start);
 
     Ok(PluginStartResult {
         // request all the image to be processed
@@ -328,13 +329,13 @@ fn r#continue(
     // Filter a portion of the image.
     // Update image rectangles for next pass.
 
-    println!("{:#?}", r#continue);
+    info!("{:#?}", r#continue);
     let clean = mangai_clean::MangaiClean::new().unwrap();
-    println!("Loaded mangai clean model");
+    info!("Loaded mangai clean model");
 
     clean.clean_page(r#continue.in_data, r#continue.out_data);
 
-    println!("Cleaned page!");
+    info!("Cleaned page!");
 
     Ok(PluginContinueResult {
         request: InOutRequest::empty(),
@@ -366,7 +367,9 @@ pub extern "C" fn PluginMain(
 
     let plugin = PluginBaseParams::from_filter(filter_param_block);
 
-    println!("----\nPluginMain: {:?}; data = {:?}", selector, plugin_data);
+    info!("PluginMain: {:?}; data = {:?}", selector, plugin_data);
+    let span = tracing::info_span!("PluginMain", selector = ?selector);
+    let _span_guard = span.enter();
 
     // plugin.report_progress(10, 100);
 
@@ -379,7 +382,7 @@ pub extern "C" fn PluginMain(
         ),
         FilterSelector::Start => start(&plugin, PluginStartParams::from_filter(filter_param_block))
             .map(|result| {
-                println!("start result: {:#?}", result);
+                info!("start result: {:#?}", result);
                 result.to_filter(filter_param_block);
             }),
         FilterSelector::Continue => r#continue(
@@ -387,7 +390,7 @@ pub extern "C" fn PluginMain(
             PluginContinueParams::from_filter(filter_param_block),
         )
         .map(|result| {
-            println!("continue result: {:#?}", result);
+            info!("continue result: {:#?}", result);
             result.to_filter(filter_param_block);
         }),
         FilterSelector::Finish => finish(&plugin),

@@ -16,8 +16,11 @@ msgbox = "0.7.0"
 num_enum = "0.5.7"
 windows = { version = "0.43.0", features = ["Win32_System_Console", "Win32_Foundation"] }
 
-ndarray = { workspace = true }
+tracing = "0.1.37"
+tracing-subscriber = "0.3.16"
+ansi_term = "0.12.1"
 
+ndarray = { workspace = true }
 # intel-mkl required for windows builds
 ndarray-linalg = { workspace = true, features = ["intel-mkl-static"] }
 intel-mkl-src = "0.8.1"
