@@ -71,8 +71,8 @@ BEGIN
 	"MIB8", /* '8BIM' */
 	"lbne", /* 'enbl' EnableInfoProperty */
 	0L, /* Index */
-	   32L, /* Length */
-	"in (PSHOP_ImageMode, RGBMode)\0\0\0", 
+	   48L, /* Length */
+	"in (PSHOP_ImageMode, RGBMode, GrayScaleMode)\0\0\0\0", 
 
 	"MIB8", /* '8BIM' */
 	"23sm", /* 'ms32' PlugInMaxSize */

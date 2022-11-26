@@ -42,7 +42,7 @@ resource 'PiPL' ( 16000, "MangAI", purgeable )
 
 		SupportedModes
 		{
-			noBitmap, noGrayScale,
+			noBitmap, doesSupportScale,
 			noIndexedColor, doesSupportRGBColor,
             noCMYKColor, noHSLColor,
             noHSBColor, noMultichannel,
@@ -57,7 +57,7 @@ resource 'PiPL' ( 16000, "MangAI", purgeable )
 			plugInUniqueID
 		},
 
-		EnableInfo { "in (PSHOP_ImageMode, RGBMode)" },
+		EnableInfo { "in (PSHOP_ImageMode, RGBMode, GrayScaleMode)" },
 
 		PlugInMaxSize { 2000000, 2000000 },
 
