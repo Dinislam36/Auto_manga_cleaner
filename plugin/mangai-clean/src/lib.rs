@@ -95,16 +95,19 @@ impl MangaiClean {
 
         // pad the image if it's too small
         let (image_in, height, width) = if orig_height < BATCH_HEIGHT || orig_width < BATCH_WIDTH {
+            let height = BATCH_HEIGHT.max(orig_height);
+            let width = BATCH_WIDTH.max(orig_width);
+
             info!(
-                "Padding the image to fit the batch size ({}x{})",
-                BATCH_WIDTH, BATCH_HEIGHT
+                "Padding the image to fit the batch size (padded size is {}x{})",
+                width, height
             );
-            let mut padded_image = Array3::from_elem((3, BATCH_HEIGHT, BATCH_WIDTH), 255u8);
+            let mut padded_image = Array3::from_elem((3, height, width), 255u8);
             padded_image
                 .slice_mut(s![.., ..orig_height, ..orig_width])
                 .assign(&image_in);
 
-            (CowArray::from(padded_image), BATCH_HEIGHT, BATCH_WIDTH)
+            (CowArray::from(padded_image), height, width)
         } else {
             (CowArray::from(image_in), orig_height, orig_width)
         };
