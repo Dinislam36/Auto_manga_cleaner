@@ -5,10 +5,12 @@
 // honestly, progress reporting should be redesigned
 // but here we are
 
+use crate::PluginBaseParams;
 use mangai_clean::{ProgressKind, ProgressReporter};
 use nwg::NativeUi;
 use std::cell::RefCell;
 use std::sync::{Arc, Mutex, Once};
+use tracing::info;
 
 #[derive(Default, Clone, Debug)]
 enum ProgressStatus {
@@ -141,21 +143,64 @@ impl ProgressReporter for GuiSenderProgress {
 
 static GUI_INIT: Once = Once::new();
 
-pub fn run_with_progress<'a>(func: impl FnOnce(&mut dyn ProgressReporter) + Send + 'a) {
-    GUI_INIT.call_once(|| {
-        nwg::init().unwrap();
-        nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
-    });
+pub fn run_with_progress<'a>(
+    ps: &PluginBaseParams,
+    func: impl FnOnce(&mut dyn ProgressReporter) + Send + 'a,
+) {
+    // the custom UI is prone to crashing, so use PS's progress bar instead
+    // GUI_INIT.call_once(|| {
+    //     nwg::init().unwrap();
+    //     nwg::Font::set_global_family("Segoe UI").expect("Failed to set default font");
+    // });
+    //
+    // let app = BasicApp::build_ui(Default::default()).expect("Failed to build UI");
+    //
+    // // I hate GUI I hate GUI I hate GUI
+    // let box_: Box<dyn FnOnce(&mut dyn ProgressReporter) + Send + 'a> = Box::new(func);
+    // let box_: Box<dyn FnOnce(&mut dyn ProgressReporter) + Send> =
+    // // SAFETY: this function __should__ only be able to terminate after the closure is terminated
+    //     unsafe { std::mem::transmute(box_) };
+    //
+    // *app.func.borrow_mut() = Some(box_);
+    //
+    // nwg::dispatch_thread_events();
 
-    let app = BasicApp::build_ui(Default::default()).expect("Failed to build UI");
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            let mut progress = PsProgressReporter::new(ps);
 
-    // I hate GUI I hate GUI I hate GUI
-    let box_: Box<dyn FnOnce(&mut dyn ProgressReporter) + Send + 'a> = Box::new(func);
-    let box_: Box<dyn FnOnce(&mut dyn ProgressReporter) + Send> =
-    // SAFETY: this function __should__ only be able to terminate after the closure is terminated
-        unsafe { std::mem::transmute(box_) };
+            info!("!!!!");
 
-    *app.func.borrow_mut() = Some(box_);
+            func(&mut progress);
+        })
+        .join()
+        .unwrap();
+    })
+}
 
-    nwg::dispatch_thread_events();
+pub struct PsProgressReporter<'a> {
+    params: &'a PluginBaseParams,
+    total: i32,
+}
+
+impl<'a> PsProgressReporter<'a> {
+    pub fn new(params: &'a PluginBaseParams) -> Self {
+        Self { params, total: 0 }
+    }
+}
+
+impl<'a> ProgressReporter for PsProgressReporter<'a> {
+    fn init(&mut self, _kind: ProgressKind, _operation: &str, total: usize) {
+        info!("progress START: {:?} {:?} {}", _kind, _operation, total);
+        self.total = total as i32;
+    }
+
+    fn progress(&mut self, progress: usize) {
+        info!("progress: {}", progress);
+        self.params.report_progress(progress as i32, self.total);
+    }
+
+    fn finish(&mut self) {
+        self.params.report_progress(self.total, self.total);
+    }
 }

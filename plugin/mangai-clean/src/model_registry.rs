@@ -22,6 +22,11 @@ static MODEL_SOURCE: ModelSource =
     }
     // model_augment_all_2.onnx
     // ""
+    // model_augment_all_more_train.onnx
+    // ModelSource {
+    //     url: "https://github.com/Dinislam36/Auto_manga_cleaner/releases/download/v0.1.1/model_augment_all_more_train.onnx",
+    //     sha256: "6df90cb764092f574f4c4916aef84e45f773339dcdc6c7274a0c1b7096e0ac65",
+    // }
 ;
 
 fn get_cache_dir() -> Result<PathBuf> {

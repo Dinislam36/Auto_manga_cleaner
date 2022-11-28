@@ -4,6 +4,7 @@ extern crate intel_mkl_src as _src;
 mod console;
 mod panic_handler;
 mod point;
+#[allow(unused)]
 mod progress;
 mod rect;
 
@@ -17,10 +18,10 @@ use ps_sdk_sys::{int16, int32, Boolean, FilterRecord};
 use rect::Rect;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
-use tracing::info;
+use tracing::{error, info};
 
 #[allow(unused)]
-struct PluginBaseParams {
+pub struct PluginBaseParams {
     test_abort_cb: unsafe extern "C" fn() -> Boolean,
     progress_cb: unsafe extern "C" fn(done: int32, total: int32),
     host_cb: unsafe extern "C" fn(selector: int16, data: *mut isize),
@@ -335,9 +336,9 @@ fn start(
 
     if !matches!(
         (start.image_mode, start.depth, start.planes),
-        (ImageMode::RGBColor, 8, 3) | (ImageMode::GrayScale, 8, 1)
+        (ImageMode::RGBColor, 8, 3 | 4) | (ImageMode::GrayScale, 8, 1 | 2)
     ) {
-        info!(
+        error!(
             "Bad mode: image_mode={:?}, depth={}, planes={} (support only RGB8 and GrayScale8)",
             start.image_mode, start.depth, start.planes
         );
@@ -346,25 +347,35 @@ fn start(
 
     info!("{:#?}", start);
 
+    let hi_plane = match (start.image_mode, start.planes) {
+        (ImageMode::RGBColor, 3) => 2,
+        (ImageMode::RGBColor, 4) => 2, // no alpha!
+        (ImageMode::GrayScale, 1) => 0,
+        (ImageMode::GrayScale, 2) => 0, // no alpha!
+        _ => unreachable!(),
+    };
+
+    info!("Requesting planes 0..={}", hi_plane);
+
     Ok(PluginStartResult {
         // request all the image to be processed
         request: InOutRequest {
             rq_in: DataRequest {
                 rect: start.filter_rect,
                 lo_plane: 0,
-                hi_plane: start.planes - 1,
+                hi_plane,
             },
             rq_out: DataRequest {
                 rect: start.filter_rect,
                 lo_plane: 0,
-                hi_plane: start.planes - 1,
+                hi_plane,
             },
         },
     })
 }
 
 fn r#continue(
-    _plugin: &PluginBaseParams,
+    plugin: &PluginBaseParams,
     r#continue: PluginContinueParams,
 ) -> Result<PluginContinueResult, FilterError> {
     // Filter a portion of the image.
@@ -372,7 +383,8 @@ fn r#continue(
 
     info!("{:#?}", r#continue);
 
-    progress::run_with_progress(|progress| {
+    progress::run_with_progress(plugin, |progress| {
+        info!("Loading mangai model...");
         let clean = mangai_clean::MangaiClean::new(progress).unwrap();
         info!("Loaded mangai clean model");
 
